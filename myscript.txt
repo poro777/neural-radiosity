@@ -1,0 +1,21 @@
+
+python train.py  -- out_root=output/nerad \
+    'saving=[latest]' \
+    batch_size=10240 \
+    learning_rate=0.0005 \
+    rendering.spp=64 \
+    validation.image.step_size=1000 \
+    validation.image.first_step=true \
+    saving.latest.step_size=1000 \
+    n_steps=30000 \
+    lr_decay_start=10000 \
+    lr_decay_rate=0.35 \
+    lr_decay_steps=10000 \
+    lr_decay_min_rate=0.01 \
+    dataset.scene=data/NeRad_paper_scenes/veach_ajar/scene.xml \
+    name=veach_ajar
+
+
+python test.py test_rendering.image.spp=32 test_rendering.image.width=512 blocksize=32 experiment=./output/nerad/xxx-veach_ajar
+
+python test.py blocksize=32 experiment=./output/nerad/xxx-veach_ajar +viewer=true

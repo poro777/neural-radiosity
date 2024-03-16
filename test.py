@@ -18,8 +18,10 @@ from nerad.utils.render_utils import render_and_save_image
 from nerad.utils.sensor_utils import create_sensor
 from nerad.utils.json_utils import write_json
 
-logger = logging.getLogger(__name__)
 
+import viewer
+
+logger = logging.getLogger(__name__)
 
 @hydra.main(version_base="1.2", config_path="config", config_name="test")
 def main(cfg: TestConfig = None):
@@ -75,6 +77,15 @@ def main(cfg: TestConfig = None):
     if len(view_indices) == 0:
         n_views = 1 if cfg.n_views <= 0 else cfg.n_views
         view_indices = list(range(n_views))
+
+
+
+    if hasattr(cfg, "viewer") and cfg.viewer:
+        for name, rendering in test_rendering.items():
+            integrator = test_integrators[name]
+        sys = viewer.render_system(scene, [0,0,0],[0,0], integrator)
+        sys.main()
+        return
 
     logger.info(f"Render {len(view_indices)} views to {out_root}")
     all_metrics = {}
