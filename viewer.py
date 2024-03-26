@@ -4,10 +4,15 @@ from PIL import Image
 import numpy as np
 import drjit as dr
 import cv2
+import torch
 
 mi.set_variant('cuda_ad_rgb')
 
-from nerad.utils.render_utils import process_nerad_output
+def process_nerad_output(img):
+    residual = img[:, :, -3:]
+    LHS = img[:, :, -7:-3]
+    RHS = img[:, :, :-7]
+    return residual, LHS, RHS
 
 class render_system():
     '''
@@ -26,19 +31,17 @@ class render_system():
         cv2.namedWindow(self.window)
         cv2.setMouseCallback(self.window, render_system.mouse_callback, self)
 
-        self.mode = "path"
         self.nerad = integrator is not None
+        self.mode = "LHS" if self.nerad else "path"
 
-        cv2.createTrackbar("SSP", self.window, 1, 256, lambda x: render_system.on_SSP_change(x, self))
-        cv2.createTrackbar("Resolution", self.window, 5, 10, lambda x: render_system.on_Resolution_change(x, self))
-        cv2.createTrackbar("Depth", self.window, 1, 16, lambda x: render_system.on_Depth_change(x, self))
-        cv2.createTrackbar("Mode", self.window, 1, 3, lambda x: render_system.on_Mode_change(x, self))
+        self.limit = (2 ** 20) if self.nerad else (2 ** 28) # limit ssp per frame (ssp * width * height)
 
+ 
         resoultion = 6
         self.ssp = 32
         self.depth = 8
 
-
+        self.stop = 0
         self.width = 2 ** resoultion
 
         self.height = self.width
@@ -54,11 +57,23 @@ class render_system():
         self.angle = np.array(angle).astype(float)
         self.positive_y = np.array([0,1,0]).astype(float)
 
-        cv2.setTrackbarPos("SSP", self.window, self.ssp)
-        cv2.setTrackbarPos("Resolution", self.window, resoultion)
-        cv2.setTrackbarPos("Depth", self.window, self.depth)
+        cv2.createTrackbar("Disable", self.window, 0, 1, lambda x: render_system.on_state_change(x, self))
+        cv2.createTrackbar("SSP", self.window, self.ssp, 256, lambda x: render_system.on_SSP_change(x, self))
+        cv2.createTrackbar("Resolution", self.window, resoultion, 10, lambda x: render_system.on_Resolution_change(x, self))
+        cv2.createTrackbar("Depth", self.window, self.depth, 16, lambda x: render_system.on_Depth_change(x, self))
+        cv2.createTrackbar("Mode", self.window, 0, 1, lambda x: render_system.on_Mode_change(x, self))
+
+        cv2.setTrackbarMin('SSP', self.window, 1) 
+        cv2.setTrackbarMin('Resolution', self.window, 1) 
+        cv2.setTrackbarMin('Depth', self.window, 1) 
+
+    def on_state_change(val, self):
+        self.stop = val
 
     def mouse_callback(event, x, y, flags, self):
+        if self.stop:
+            return
+        
         if event == cv2.EVENT_LBUTTONDOWN:
             self.pre_x, self.pre_y = x, y
 
@@ -75,11 +90,16 @@ class render_system():
 
     def on_Mode_change(val, self):
         if self.nerad:
+            if val == 0:
+                self.mode = "LHS"
+            elif val == 1:
+                self.mode = "RHS"
+            self.change = True
             return
-
-        if val == 1:
+        
+        if val == 0:
             self.mode = "path"
-        elif val == 2:
+        elif val == 1:
             self.mode = "ptracer"
 
 
@@ -141,8 +161,18 @@ class render_system():
 
             while True:
                 key = cv2.waitKey(1000//30) & 0xFF
+                
+                if key == ord('q') or not cv2.getWindowProperty('Image', cv2.WND_PROP_VISIBLE) >= 1:
+                    break
 
-                if key == ord('w'):
+                elif self.stop:
+                    continue
+                elif (self.ssp * self.height * self.width) > self.limit:
+                    print(f'{self.ssp} * {self.height} * {self.width} > limit:{self.limit}')
+                    cv2.setTrackbarPos("Disable", self.window, 1)
+                    continue
+
+                elif key == ord('w'):
                     self.origin += self.getDirection() * 0.2
                 elif key == ord('s'):
                     self.origin -= self.getDirection() * 0.2
@@ -171,10 +201,9 @@ class render_system():
                 elif key == ord('l'):
                     self.angle[1] -= 0.05
 
-                elif key == ord('q') or not cv2.getWindowProperty('Image', cv2.WND_PROP_VISIBLE) >= 1:
-                    break
                 elif key == ord('z'):
-                    #TODO
+                    cv2.imwrite("./output.png", image)
+                    print("save ./output.png")
                     continue
                 elif not self.change:
                     continue
@@ -184,11 +213,16 @@ class render_system():
                 self.params['to_world'] = view
                 self.params.update()
 
-                image = mi.render(self.scene, spp=self.ssp, integrator = self.intergrator, sensor=self.sensor)
-                if self.nerad:
-                    _, LHS, RHS = process_nerad_output(image)
-                    image = LHS
-                cv2.imshow(self.window, cv2.resize(cv2.cvtColor(np.array(image), cv2.COLOR_RGBA2BGR),
+                with dr.suspend_grad():
+                    with torch.no_grad():
+                        image = mi.render(self.scene, spp=self.ssp, integrator = self.intergrator, sensor=self.sensor)
+                        if self.nerad:
+                            _, LHS, RHS = process_nerad_output(image)
+
+                            image = RHS if self.mode == "RHS" else LHS 
+                        image = cv2.cvtColor(np.array( mi.Bitmap(image).convert(mi.Bitmap.PixelFormat.RGBA,mi.Struct.Type.UInt8,True)), cv2.COLOR_RGBA2BGR)
+
+                cv2.imshow(self.window, cv2.resize(image,
                                                (windowWidth, windowHeight),
                                                interpolation= cv2.INTER_NEAREST ))
             print( f'look_at: \npos = {self.origin}\ndir = {self.getTarget()} (self.angle = {self.angle})')
