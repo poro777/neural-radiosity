@@ -5,6 +5,7 @@ import numpy as np
 import drjit as dr
 import cv2
 import torch
+import argparse
 
 mi.set_variant('cuda_ad_rgb')
 
@@ -232,7 +233,15 @@ class render_system():
 
 
 if __name__ == "__main__":
-    scene = "./data/NeRad_paper_scenes/veach_ajar/scene.xml"
+    parser = argparse.ArgumentParser()
+
+    # Add arguments
+    parser.add_argument("--path",default='./data/NeRad_paper_scenes/veach_ajar/scene.xml', help="path", type=str)
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    scene = args.path
     scene = mi.load_file(scene)
     sys = render_system(scene, [0,0,0],[0,0])
     sys.main()
