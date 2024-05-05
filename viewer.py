@@ -38,8 +38,8 @@ class render_system():
         self.limit = (2 ** 20) if self.nerad else (2 ** 28) # limit ssp per frame (ssp * width * height)
 
  
-        resoultion = 6
-        self.ssp = 32
+        resoultion = 8
+        self.ssp = 8
         self.depth = 8
 
         self.stop = 0
