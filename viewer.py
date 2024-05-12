@@ -35,11 +35,11 @@ class render_system():
         self.nerad = integrator is not None
         self.mode = "LHS" if self.nerad else "path"
 
-        self.limit = (2 ** 20) if self.nerad else (2 ** 28) # limit ssp per frame (ssp * width * height)
+        self.limit = (2 ** 20) if self.nerad else (2 ** 28) # limit spp per frame (spp * width * height)
 
  
         resoultion = 8
-        self.ssp = 8
+        self.spp = 8
         self.depth = 8
 
         self.stop = 0
@@ -59,12 +59,12 @@ class render_system():
         self.positive_y = np.array([0,1,0]).astype(float)
 
         cv2.createTrackbar("Disable", self.window, 0, 1, lambda x: render_system.on_state_change(x, self))
-        cv2.createTrackbar("SSP", self.window, self.ssp, 256, lambda x: render_system.on_SSP_change(x, self))
+        cv2.createTrackbar("SPP", self.window, self.spp, 256, lambda x: render_system.on_SPP_change(x, self))
         cv2.createTrackbar("Resolution", self.window, resoultion, 10, lambda x: render_system.on_Resolution_change(x, self))
         cv2.createTrackbar("Depth", self.window, self.depth, 16, lambda x: render_system.on_Depth_change(x, self))
         cv2.createTrackbar("Mode", self.window, 0, 1, lambda x: render_system.on_Mode_change(x, self))
 
-        cv2.setTrackbarMin('SSP', self.window, 1) 
+        cv2.setTrackbarMin('SPP', self.window, 1) 
         cv2.setTrackbarMin('Resolution', self.window, 1) 
         cv2.setTrackbarMin('Depth', self.window, 1) 
 
@@ -85,8 +85,8 @@ class render_system():
             self.pre_x, self.pre_y = x, y
             self.change = True
 
-    def on_SSP_change(val, self):
-        self.ssp = val
+    def on_SPP_change(val, self):
+        self.spp = val
         self.change = True
 
     def on_Mode_change(val, self):
@@ -168,8 +168,8 @@ class render_system():
 
                 elif self.stop:
                     continue
-                elif (self.ssp * self.height * self.width) > self.limit:
-                    print(f'{self.ssp} * {self.height} * {self.width} > limit:{self.limit}')
+                elif (self.spp * self.height * self.width) > self.limit:
+                    print(f'{self.spp} * {self.height} * {self.width} > limit:{self.limit}')
                     cv2.setTrackbarPos("Disable", self.window, 1)
                     continue
 
@@ -216,7 +216,7 @@ class render_system():
 
                 with dr.suspend_grad():
                     with torch.no_grad():
-                        image = mi.render(self.scene, spp=self.ssp, integrator = self.intergrator, sensor=self.sensor)
+                        image = mi.render(self.scene, spp=self.spp, integrator = self.intergrator, sensor=self.sensor)
                         if self.nerad:
                             _, LHS, RHS = process_nerad_output(image)
 
